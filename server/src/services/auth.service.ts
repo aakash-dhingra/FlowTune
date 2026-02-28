@@ -36,17 +36,34 @@ export class AuthService {
       client_secret: env.spotifyClientSecret
     });
 
-    const { data } = await axios.post<SpotifyTokenResponse>(
-      `${SPOTIFY_ACCOUNTS_BASE}/api/token`,
-      params,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+    try {
+      console.log('Exchanging code for tokens, redirect_uri:', env.spotifyRedirectUri);
+      const { data } = await axios.post<SpotifyTokenResponse>(
+        `${SPOTIFY_ACCOUNTS_BASE}/api/token`,
+        params,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
-      }
-    );
+      );
 
-    return data;
+      console.log('Token exchange successful:', {
+        access_token: data.access_token.substring(0, 20) + '...',
+        expires_in: data.expires_in,
+        has_refresh_token: !!data.refresh_token
+      });
+
+      return data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Token exchange failed:', {
+          status: error.response?.status,
+          data: error.response?.data
+        });
+      }
+      throw error;
+    }
   }
 
   static async refreshAccessToken(refreshToken: string): Promise<SpotifyTokenResponse> {
@@ -71,13 +88,27 @@ export class AuthService {
   }
 
   static async fetchCurrentSpotifyUser(accessToken: string): Promise<SpotifyMeResponse> {
-    const { data } = await axios.get<SpotifyMeResponse>(`${SPOTIFY_API_BASE}/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    try {
+      console.log('Fetching Spotify profile with token:', accessToken.substring(0, 20) + '...');
+      const { data } = await axios.get<SpotifyMeResponse>(`${SPOTIFY_API_BASE}/me`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
 
-    return data;
+      console.log('Spotify profile fetched successfully:', data.id);
+      return data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Spotify API error:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          headers: error.config?.headers
+        });
+      }
+      throw error;
+    }
   }
 
   static async upsertUserTokens(params: {
