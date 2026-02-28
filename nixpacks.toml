@@ -1,0 +1,12 @@
+[build]
+cmds = [
+  "cd server && npm install",
+  "cd ../client && npm install",
+  "cd ../server && npm run build"
+]
+
+[start]
+cmd = "cd server && npm start"
+
+[variables]
+NODE_ENV = "production"
