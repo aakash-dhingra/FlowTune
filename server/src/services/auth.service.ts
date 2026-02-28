@@ -24,7 +24,16 @@ export class AuthService {
       state
     });
 
-    return `${SPOTIFY_ACCOUNTS_BASE}/authorize?${params.toString()}`;
+    const url = `${SPOTIFY_ACCOUNTS_BASE}/authorize?${params.toString()}`;
+    
+    console.log('[Auth] Building Spotify authorize URL:', {
+      client_id: env.spotifyClientId,
+      redirect_uri: env.spotifyRedirectUri,
+      scopes: scopes.split(' '),
+      url: url.substring(0, 100) + '...'
+    });
+
+    return url;
   }
 
   static async exchangeCodeForTokens(code: string): Promise<SpotifyTokenResponse> {
@@ -37,7 +46,12 @@ export class AuthService {
     });
 
     try {
-      console.log('Exchanging code for tokens, redirect_uri:', env.spotifyRedirectUri);
+      console.log('[Auth] Exchanging authorization code for tokens:', {
+        redirect_uri: env.spotifyRedirectUri,
+        client_id: env.spotifyClientId,
+        code: code.substring(0, 10) + '...'
+      });
+      
       const { data } = await axios.post<SpotifyTokenResponse>(
         `${SPOTIFY_ACCOUNTS_BASE}/api/token`,
         params,
@@ -48,11 +62,12 @@ export class AuthService {
         }
       );
 
-      console.log('Token exchange successful:', {
+      console.log('[Auth] Token exchange successful:', {
         access_token: data.access_token.substring(0, 20) + '...',
         expires_in: data.expires_in,
         has_refresh_token: !!data.refresh_token,
-        scope: data.scope
+        scope: data.scope,
+        scope_array: (data.scope || '').split(' ').filter(Boolean)
       });
 
       // Check if required scopes are present
@@ -60,7 +75,7 @@ export class AuthService {
       const grantedScopes = (data.scope || '').split(' ').filter(Boolean);
       const missingScopes = requiredScopes.filter(scope => !grantedScopes.includes(scope));
       
-      console.log('Scopes verification:', {
+      console.log('[Auth] Scopes verification:', {
         required: requiredScopes,
         granted: grantedScopes,
         missing: missingScopes
@@ -77,9 +92,10 @@ export class AuthService {
       return data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error('Token exchange failed:', {
+        console.error('[Auth] Token exchange failed:', {
           status: error.response?.status,
-          data: error.response?.data
+          data: error.response?.data,
+          message: error.message
         });
       }
       throw error;
