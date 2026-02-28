@@ -31,37 +31,50 @@ export class AuthController {
   }
 
   static async callback(req: Request, res: Response): Promise<void> {
-    const code = req.query.code;
-    const state = req.query.state;
-    const expectedState = req.signedCookies?.[COOKIE_NAMES.spotifyState] as string | undefined;
+    try {
+      const code = req.query.code;
+      const state = req.query.state;
+      const expectedState = req.signedCookies?.[COOKIE_NAMES.spotifyState] as string | undefined;
 
-    if (typeof code !== 'string' || typeof state !== 'string') {
-      throw new HttpError(400, 'Invalid Spotify callback parameters');
+      console.log('Callback received:', { code: !!code, state: !!state, expectedState: !!expectedState });
+
+      if (typeof code !== 'string' || typeof state !== 'string') {
+        throw new HttpError(400, 'Invalid Spotify callback parameters');
+      }
+
+      if (!expectedState || expectedState !== state) {
+        throw new HttpError(400, 'OAuth state mismatch');
+      }
+
+      console.log('State validation passed, exchanging code for tokens...');
+      const tokenResult = await AuthService.exchangeCodeForTokens(code);
+
+      if (!tokenResult.refresh_token) {
+        throw new HttpError(400, 'Missing refresh token from Spotify');
+      }
+
+      console.log('Got tokens, fetching Spotify profile...');
+      const spotifyProfile = await AuthService.fetchCurrentSpotifyUser(tokenResult.access_token);
+      console.log('Got Spotify profile:', spotifyProfile.id);
+
+      console.log('Upserting user...');
+      const user = await AuthService.upsertUserTokens({
+        spotifyId: spotifyProfile.id,
+        accessToken: tokenResult.access_token,
+        refreshToken: tokenResult.refresh_token,
+        expiresIn: tokenResult.expires_in
+      });
+      console.log('User upserted:', user.id);
+
+      res.clearCookie(COOKIE_NAMES.spotifyState, clearCookieOptions);
+      res.cookie(COOKIE_NAMES.session, user.id, buildCookieOptions(COOKIE_MAX_AGE.sessionMs));
+
+      console.log('Redirecting to home...');
+      res.redirect(`${env.clientUrl}/`);
+    } catch (error) {
+      console.error('Callback error:', error);
+      throw error;
     }
-
-    if (!expectedState || expectedState !== state) {
-      throw new HttpError(400, 'OAuth state mismatch');
-    }
-
-    const tokenResult = await AuthService.exchangeCodeForTokens(code);
-
-    if (!tokenResult.refresh_token) {
-      throw new HttpError(400, 'Missing refresh token from Spotify');
-    }
-
-    const spotifyProfile = await AuthService.fetchCurrentSpotifyUser(tokenResult.access_token);
-
-    const user = await AuthService.upsertUserTokens({
-      spotifyId: spotifyProfile.id,
-      accessToken: tokenResult.access_token,
-      refreshToken: tokenResult.refresh_token,
-      expiresIn: tokenResult.expires_in
-    });
-
-    res.clearCookie(COOKIE_NAMES.spotifyState, clearCookieOptions);
-    res.cookie(COOKIE_NAMES.session, user.id, buildCookieOptions(COOKIE_MAX_AGE.sessionMs));
-
-    res.redirect(`${env.clientUrl}/`);
   }
 
   static me(req: Request, res: Response): void {

@@ -11,7 +11,8 @@ export const errorHandler = (
   const statusCode = err instanceof HttpError ? err.statusCode : 500;
   const message = err.message || 'Internal server error';
 
-  logger.error({ err, statusCode }, message);
+  logger.error({ err, statusCode, stack: err.stack }, message);
+  console.error('Full error:', err);
 
   res.status(statusCode).json({
     success: false,
