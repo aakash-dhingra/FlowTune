@@ -51,8 +51,21 @@ export class AuthService {
       console.log('Token exchange successful:', {
         access_token: data.access_token.substring(0, 20) + '...',
         expires_in: data.expires_in,
-        has_refresh_token: !!data.refresh_token
+        has_refresh_token: !!data.refresh_token,
+        scope: data.scope
       });
+
+      // Check if required scopes are present
+      const requiredScopes = ['user-read-private', 'user-read-email', 'user-library-read', 'playlist-modify-private', 'playlist-modify-public'];
+      const grantedScopes = (data.scope || '').split(' ');
+      const missingScopes = requiredScopes.filter(scope => !grantedScopes.includes(scope));
+      if (missingScopes.length > 0) {
+        throw new Error(`Spotify token missing required scopes: ${missingScopes.join(', ')}.\nCheck your Spotify app settings and make sure all scopes are granted.`);
+      }
+
+      if (!data.refresh_token) {
+        throw new Error('Spotify did not return a refresh token. Try revoking app access in your Spotify account and re-authenticate.');
+      }
 
       return data;
     } catch (error) {
