@@ -14,8 +14,24 @@ export class AutoCleanerController {
       throw new HttpError(401, 'Unauthorized');
     }
 
-    const data = await AutoCleanerService.analyze(req.user);
-    res.json({ success: true, data });
+    try {
+      const data = await AutoCleanerService.analyze(req.user);
+      res.json({ success: true, data });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during analysis';
+      console.error('[AutoCleanerController] Analyze failed:', errorMessage);
+      
+      if ((error as any)?.response?.status === 401) {
+        throw new HttpError(401, 'Spotify authentication failed. Please login again.');
+      }
+      if ((error as any)?.response?.status === 403) {
+        throw new HttpError(403, 'Spotify permission denied. Please check your app permissions.');
+      }
+      if ((error as any)?.response?.status >= 500) {
+        throw new HttpError(502, 'Spotify API is temporarily unavailable. Please try again.');
+      }
+      throw new HttpError(500, `Failed to analyze tracks: ${errorMessage}`);
+    }
   }
 
   static async createPlaylist(req: Request, res: Response): Promise<void> {

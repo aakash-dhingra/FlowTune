@@ -126,14 +126,27 @@ const chunk = <T>(items: T[], size: number): T[][] => {
 
 export class AutoCleanerService {
   private static async spotifyGet<T>(url: string, accessToken: string, params?: Record<string, unknown>) {
-    const { data } = await axios.get<T>(url, {
-      params,
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    try {
+      const { data } = await axios.get<T>(url, {
+        params,
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
 
-    return data;
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`[Spotify API Error] GET ${url}:`, {
+          message: error.message,
+          status: (error as any).response?.status,
+          statusText: (error as any).response?.statusText,
+          data: (error as any).response?.data,
+          isAxiosError: (error as any).isAxiosError
+        });
+      }
+      throw error;
+    }
   }
 
   private static async spotifyPost<T>(
@@ -141,13 +154,26 @@ export class AutoCleanerService {
     accessToken: string,
     body?: Record<string, unknown> | Array<unknown>
   ) {
-    const { data } = await axios.post<T>(url, body, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    try {
+      const { data } = await axios.post<T>(url, body, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
 
-    return data;
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`[Spotify API Error] POST ${url}:`, {
+          message: error.message,
+          status: (error as any).response?.status,
+          statusText: (error as any).response?.statusText,
+          data: (error as any).response?.data,
+          isAxiosError: (error as any).isAxiosError
+        });
+      }
+      throw error;
+    }
   }
 
   private static async spotifyDelete<T>(
@@ -155,65 +181,97 @@ export class AutoCleanerService {
     accessToken: string,
     body?: Record<string, unknown> | Array<unknown>
   ) {
-    const { data } = await axios.delete<T>(url, {
-      data: body,
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    try {
+      const { data } = await axios.delete<T>(url, {
+        data: body,
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
 
-    return data;
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`[Spotify API Error] DELETE ${url}:`, {
+          message: error.message,
+          status: (error as any).response?.status,
+          statusText: (error as any).response?.statusText,
+          data: (error as any).response?.data,
+          isAxiosError: (error as any).isAxiosError
+        });
+      }
+      throw error;
+    }
   }
 
   private static async fetchLikedTracks(accessToken: string): Promise<LikedTrackItem[]> {
-    const all: LikedTrackItem[] = [];
-    let offset = 0;
+    try {
+      console.log('[AutoCleaner] Fetching liked tracks from Spotify...');
+      const all: LikedTrackItem[] = [];
+      let offset = 0;
 
-    while (all.length < MAX_LIKED_TRACKS) {
-      const page = await AutoCleanerService.spotifyGet<{ items: LikedTrackItem[] }>(
-        `${SPOTIFY_API_BASE}/me/tracks`,
-        accessToken,
-        {
-          limit: 50,
-          offset
+      while (all.length < MAX_LIKED_TRACKS) {
+        console.log(`[AutoCleaner] Fetching liked tracks batch, offset: ${offset}`);
+        const page = await AutoCleanerService.spotifyGet<{ items: LikedTrackItem[] }>(
+          `${SPOTIFY_API_BASE}/me/tracks`,
+          accessToken,
+          {
+            limit: 50,
+            offset
+          }
+        );
+
+        if (!page.items.length) {
+          console.log('[AutoCleaner] No more liked tracks to fetch');
+          break;
         }
-      );
 
-      if (!page.items.length) {
-        break;
+        all.push(...page.items);
+        offset += page.items.length;
+
+        if (page.items.length < 50) {
+          break;
+        }
       }
 
-      all.push(...page.items);
-      offset += page.items.length;
-
-      if (page.items.length < 50) {
-        break;
-      }
+      console.log(`[AutoCleaner] Successfully fetched ${all.length} liked tracks`);
+      return all;
+    } catch (error) {
+      console.error('[AutoCleaner] Failed to fetch liked tracks:', error instanceof Error ? error.message : error);
+      throw error;
     }
-
-    return all;
   }
 
   private static async fetchAudioFeatures(accessToken: string, trackIds: string[]): Promise<Map<string, AudioFeature>> {
-    const features = new Map<string, AudioFeature>();
+    try {
+      console.log(`[AutoCleaner] Fetching audio features for ${trackIds.length} tracks...`);
+      const features = new Map<string, AudioFeature>();
+      const chunks = chunk(trackIds, 100);
+      console.log(`[AutoCleaner] Processing ${chunks.length} batches of audio features`);
 
-    for (const idsChunk of chunk(trackIds, 100)) {
-      const data = await AutoCleanerService.spotifyGet<{ audio_features: Array<AudioFeature | null> }>(
-        `${SPOTIFY_API_BASE}/audio-features`,
-        accessToken,
-        {
-          ids: idsChunk.join(',')
-        }
-      );
+      for (const idsChunk of chunks) {
+        console.log(`[AutoCleaner] Fetching audio features for ${idsChunk.length} tracks`);
+        const data = await AutoCleanerService.spotifyGet<{ audio_features: Array<AudioFeature | null> }>(
+          `${SPOTIFY_API_BASE}/audio-features`,
+          accessToken,
+          {
+            ids: idsChunk.join(',')
+          }
+        );
 
-      for (const feature of data.audio_features) {
-        if (feature?.id) {
-          features.set(feature.id, feature);
+        for (const feature of data.audio_features) {
+          if (feature?.id) {
+            features.set(feature.id, feature);
+          }
         }
       }
-    }
 
-    return features;
+      console.log(`[AutoCleaner] Successfully fetched audio features for ${features.size} tracks`);
+      return features;
+    } catch (error) {
+      console.error('[AutoCleaner] Failed to fetch audio features:', error instanceof Error ? error.message : error);
+      throw error;
+    }
   }
 
   private static toTrackWithFeatures(
@@ -360,32 +418,55 @@ export class AutoCleanerService {
   }
 
   static async analyze(user: User): Promise<AutoCleanerAnalysis> {
-    const likedTracks = await AutoCleanerService.fetchLikedTracks(user.accessToken);
-    const trackIds = likedTracks.map((item) => item.track.id).filter(Boolean);
+    try {
+      console.log(`[AutoCleaner] Starting analysis for user ${user.id}`);
+      
+      const likedTracks = await AutoCleanerService.fetchLikedTracks(user.accessToken);
+      console.log(`[AutoCleaner] Fetched ${likedTracks.length} liked tracks`);
+      
+      const trackIds = likedTracks.map((item) => item.track.id).filter(Boolean);
+      console.log(`[AutoCleaner] Extracted ${trackIds.length} track IDs`);
 
-    if (!trackIds.length) {
+      if (!trackIds.length) {
+        console.log('[AutoCleaner] No tracks found, returning empty analysis');
+        return {
+          groups: groupOrder.map((name) => ({ name, tracks: [] })),
+          totalTracks: 0,
+          duplicateCandidates: 0,
+          lowPlayedCandidates: 0
+        };
+      }
+
+      console.log(`[AutoCleaner] Fetching audio features for ${trackIds.length} tracks`);
+      const audioFeatures = await AutoCleanerService.fetchAudioFeatures(user.accessToken, trackIds);
+      console.log(`[AutoCleaner] Got audio features for ${audioFeatures.size} tracks`);
+      
+      const tracks = AutoCleanerService.toTrackWithFeatures(likedTracks, audioFeatures);
+      console.log(`[AutoCleaner] Created ${tracks.length} tracks with features`);
+      
+      const clusters = AutoCleanerService.runKMeans(tracks);
+      console.log(`[AutoCleaner] Clustered into ${clusters.length} groups`);
+      
+      const groups = AutoCleanerService.labelClusters(clusters);
+      console.log('[AutoCleaner] Labeled clusters');
+
+      const duplicateCandidates = dedupeTrackIds(tracks).length;
+      const lowPlayedCandidates = tracks.filter((track) => track.popularity <= 35).length;
+
+      console.log('[AutoCleaner] Analysis complete');
       return {
-        groups: groupOrder.map((name) => ({ name, tracks: [] })),
-        totalTracks: 0,
-        duplicateCandidates: 0,
-        lowPlayedCandidates: 0
+        groups,
+        totalTracks: tracks.length,
+        duplicateCandidates,
+        lowPlayedCandidates
       };
+    } catch (error) {
+      console.error('[AutoCleaner] Analysis failed:', error instanceof Error ? {
+        message: error.message,
+        stack: error.stack
+      } : error);
+      throw error;
     }
-
-    const audioFeatures = await AutoCleanerService.fetchAudioFeatures(user.accessToken, trackIds);
-    const tracks = AutoCleanerService.toTrackWithFeatures(likedTracks, audioFeatures);
-    const clusters = AutoCleanerService.runKMeans(tracks);
-    const groups = AutoCleanerService.labelClusters(clusters);
-
-    const duplicateCandidates = dedupeTrackIds(tracks).length;
-    const lowPlayedCandidates = tracks.filter((track) => track.popularity <= 35).length;
-
-    return {
-      groups,
-      totalTracks: tracks.length,
-      duplicateCandidates,
-      lowPlayedCandidates
-    };
   }
 
   static async createPlaylistFromGroup(params: {
