@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Music playlist management with AI",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
-    "build": "cd server && npm run build",
-    "start": "cd server && npm start"
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server start"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -1,8 +1,11 @@
+[providers]
+# Use node provider
+node = {}
+
 [build]
 cmds = [
-  "cd server && npm install",
-  "cd ../client && npm install",
-  "cd ../server && npm run build"
+  "npm install",
+  "npm run build"
 ]
 
 [start]

@@ -3,8 +3,8 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "cd server && npm start",
-    "buildCommand": "cd server && npm install && cd ../client && npm install && cd ../server && npm run build"
+    "startCommand": "npm start",
+    "buildCommand": "npm install && npm run build"
   }
 }
 
