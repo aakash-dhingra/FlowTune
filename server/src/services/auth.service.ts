@@ -57,8 +57,15 @@ export class AuthService {
 
       // Check if required scopes are present
       const requiredScopes = ['user-read-private', 'user-read-email', 'user-library-read', 'playlist-modify-private', 'playlist-modify-public'];
-      const grantedScopes = (data.scope || '').split(' ');
+      const grantedScopes = (data.scope || '').split(' ').filter(Boolean);
       const missingScopes = requiredScopes.filter(scope => !grantedScopes.includes(scope));
+      
+      console.log('Scopes verification:', {
+        required: requiredScopes,
+        granted: grantedScopes,
+        missing: missingScopes
+      });
+      
       if (missingScopes.length > 0) {
         throw new Error(`Spotify token missing required scopes: ${missingScopes.join(', ')}.\nCheck your Spotify app settings and make sure all scopes are granted.`);
       }
@@ -113,14 +120,38 @@ export class AuthService {
       return data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error('Spotify API error:', {
+        console.error('Spotify API error when fetching profile:', {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
           headers: error.config?.headers
         });
+        if (error.response?.status === 403) {
+          throw new Error('Spotify permission denied when fetching profile. Token may lack required scopes.');
+        }
       }
       throw error;
+    }
+  }
+
+  static async fetchTokenInfo(accessToken: string) {
+    try {
+      console.log('[Auth] Fetching token info from Spotify...');
+      const { data } = await axios.get<any>(`${SPOTIFY_API_BASE}/me`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      console.log('[Auth] Token is valid, fetched user:', data.id);
+      return { valid: true, userId: data.id };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('[Auth] Token validation failed:', {
+          status: error.response?.status,
+          data: error.response?.data
+        });
+      }
+      return { valid: false };
     }
   }
 

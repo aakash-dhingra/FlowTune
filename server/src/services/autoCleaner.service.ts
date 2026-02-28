@@ -207,6 +207,8 @@ export class AutoCleanerService {
   private static async fetchLikedTracks(accessToken: string): Promise<LikedTrackItem[]> {
     try {
       console.log('[AutoCleaner] Fetching liked tracks from Spotify...');
+      console.log('[AutoCleaner] Access token:', accessToken.substring(0, 20) + '...');
+      
       const all: LikedTrackItem[] = [];
       let offset = 0;
 

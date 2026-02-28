@@ -92,6 +92,15 @@ export class AuthController {
     });
   }
 
+  static async tokenInfo(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new HttpError(401, 'Unauthorized');
+    }
+
+    const tokenInfo = await AuthService.fetchTokenInfo(req.user.accessToken);
+    res.json({ success: true, data: tokenInfo });
+  }
+
   static logout(_req: Request, res: Response): void {
     res.clearCookie(COOKIE_NAMES.session, clearCookieOptions);
     res.clearCookie(COOKIE_NAMES.spotifyState, clearCookieOptions);
