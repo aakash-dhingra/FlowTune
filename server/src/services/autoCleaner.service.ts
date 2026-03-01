@@ -348,7 +348,7 @@ export class AutoCleanerService {
 
     for (const uriChunk of chunk(group.tracks.map((track) => track.uri), 100)) {
       await AutoCleanerService.spotifyPost(
-        `${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`,
+        `${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/items`,
         params.user.accessToken,
         {
           uris: uriChunk
@@ -411,7 +411,7 @@ export class AutoCleanerService {
     );
 
     for (const uriChunk of chunk(toArchive.map((track) => track.uri), 100)) {
-      await AutoCleanerService.spotifyPost(`${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`, user.accessToken, {
+      await AutoCleanerService.spotifyPost(`${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/items`, user.accessToken, {
         uris: uriChunk
       });
     }
