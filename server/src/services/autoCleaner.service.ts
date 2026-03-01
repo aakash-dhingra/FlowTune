@@ -382,11 +382,10 @@ export class AutoCleanerService {
       throw new HttpError(400, `No tracks available in group: ${params.groupName}`);
     }
 
-    const profile = await AuthService.fetchCurrentSpotifyUser(params.user.accessToken);
     const playlistName = params.customName?.trim() || `FlowTune ${params.groupName}`;
 
     const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
-      `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
+      `${SPOTIFY_API_BASE}/me/playlists`,
       params.user.accessToken,
       {
         name: playlistName,
@@ -449,10 +448,8 @@ export class AutoCleanerService {
       };
     }
 
-    const profile = await AuthService.fetchCurrentSpotifyUser(user.accessToken);
-
     const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
-      `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
+      `${SPOTIFY_API_BASE}/me/playlists`,
       user.accessToken,
       {
         name: `FlowTune Archive ${new Date().toISOString().slice(0, 10)}`,
