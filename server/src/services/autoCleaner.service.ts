@@ -382,65 +382,42 @@ export class AutoCleanerService {
       throw new HttpError(400, `No tracks available in group: ${params.groupName}`);
     }
 
-    let profile: { id: string };
-    try {
-      profile = await AuthService.fetchCurrentSpotifyUser(params.user.accessToken);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Spotify permission denied')) {
-        console.warn('[AutoCleaner] 403 Forbidden fetching profile. Using mock profile.');
-        profile = { id: 'mock_user' };
-      } else {
-        throw error;
-      }
-    }
+    const profile = await AuthService.fetchCurrentSpotifyUser(params.user.accessToken);
     const playlistName = params.customName?.trim() || `FlowTune ${params.groupName}`;
 
-    try {
-      const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
-        `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
+    const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
+      `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
+      params.user.accessToken,
+      {
+        name: playlistName,
+        description: `Auto-cleaned ${params.groupName} tracks by FlowTune`,
+        public: false
+      }
+    );
+
+    for (const uriChunk of chunk(group.tracks.map((track) => track.uri), 100)) {
+      await AutoCleanerService.spotifyPost(
+        `${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`,
         params.user.accessToken,
         {
-          name: playlistName,
-          description: `Auto-cleaned ${params.groupName} tracks by FlowTune`,
-          public: false
+          uris: uriChunk
         }
       );
-
-      for (const uriChunk of chunk(group.tracks.map((track) => track.uri), 100)) {
-        await AutoCleanerService.spotifyPost(
-          `${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`,
-          params.user.accessToken,
-          {
-            uris: uriChunk
-          }
-        );
-      }
-
-      await prisma.generatedPlaylist.create({
-        data: {
-          userId: params.user.id,
-          type: 'cleaner'
-        }
-      });
-
-      return {
-        playlistId: createdPlaylist.id,
-        playlistUrl: createdPlaylist.external_urls?.spotify ?? null,
-        trackCount: group.tracks.length,
-        groupName: params.groupName
-      };
-    } catch (error) {
-      if ((error as any).response?.status === 403) {
-        console.warn('[AutoCleaner] 403 Forbidden when creating playlist. Returning mock success for Development Mode / Non-Premium user.');
-        return {
-          playlistId: `mock_playlist_${Date.now()}`,
-          playlistUrl: 'https://open.spotify.com/',
-          trackCount: group.tracks.length,
-          groupName: params.groupName
-        };
-      }
-      throw error;
     }
+
+    await prisma.generatedPlaylist.create({
+      data: {
+        userId: params.user.id,
+        type: 'cleaner'
+      }
+    });
+
+    return {
+      playlistId: createdPlaylist.id,
+      playlistUrl: createdPlaylist.external_urls?.spotify ?? null,
+      trackCount: group.tracks.length,
+      groupName: params.groupName
+    };
   }
 
   static async removeDuplicates(user: User) {
@@ -448,23 +425,15 @@ export class AutoCleanerService {
     const allTracks = analysis.groups.flatMap((group) => group.tracks);
     const duplicateIds = dedupeTrackIds(allTracks);
 
-    try {
-      for (const idsChunk of chunk(duplicateIds, 50)) {
-        await AutoCleanerService.spotifyDelete(`${SPOTIFY_API_BASE}/me/tracks`, user.accessToken, {
-          ids: idsChunk
-        });
-      }
-
-      return {
-        removedCount: duplicateIds.length
-      };
-    } catch (error) {
-      if ((error as any).response?.status === 403) {
-        console.warn('[AutoCleaner] 403 Forbidden when removing duplicates. Returning mock success for Development Mode / Non-Premium user.');
-        return { removedCount: duplicateIds.length };
-      }
-      throw error;
+    for (const idsChunk of chunk(duplicateIds, 50)) {
+      await AutoCleanerService.spotifyDelete(`${SPOTIFY_API_BASE}/me/tracks`, user.accessToken, {
+        ids: idsChunk
+      });
     }
+
+    return {
+      removedCount: duplicateIds.length
+    };
   }
 
   static async archiveLowPlayed(user: User, popularityThreshold = 35) {
@@ -480,63 +449,41 @@ export class AutoCleanerService {
       };
     }
 
-    let profile: { id: string };
-    try {
-      profile = await AuthService.fetchCurrentSpotifyUser(user.accessToken);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Spotify permission denied')) {
-        console.warn('[AutoCleaner] 403 Forbidden fetching profile. Using mock profile.');
-        profile = { id: 'mock_user' };
-      } else {
-        throw error;
+    const profile = await AuthService.fetchCurrentSpotifyUser(user.accessToken);
+
+    const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
+      `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
+      user.accessToken,
+      {
+        name: `FlowTune Archive ${new Date().toISOString().slice(0, 10)}`,
+        description: `Archived low-popularity tracks by FlowTune (<= ${popularityThreshold})`,
+        public: false
       }
-    }
+    );
 
-    try {
-      const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
-        `${SPOTIFY_API_BASE}/users/${profile.id}/playlists`,
-        user.accessToken,
-        {
-          name: `FlowTune Archive ${new Date().toISOString().slice(0, 10)}`,
-          description: `Archived low-popularity tracks by FlowTune (<= ${popularityThreshold})`,
-          public: false
-        }
-      );
-
-      for (const uriChunk of chunk(toArchive.map((track) => track.uri), 100)) {
-        await AutoCleanerService.spotifyPost(`${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`, user.accessToken, {
-          uris: uriChunk
-        });
-      }
-
-      for (const idsChunk of chunk(toArchive.map((track) => track.id), 50)) {
-        await AutoCleanerService.spotifyDelete(`${SPOTIFY_API_BASE}/me/tracks`, user.accessToken, {
-          ids: idsChunk
-        });
-      }
-
-      await prisma.generatedPlaylist.create({
-        data: {
-          userId: user.id,
-          type: 'cleaner'
-        }
+    for (const uriChunk of chunk(toArchive.map((track) => track.uri), 100)) {
+      await AutoCleanerService.spotifyPost(`${SPOTIFY_API_BASE}/playlists/${createdPlaylist.id}/tracks`, user.accessToken, {
+        uris: uriChunk
       });
-
-      return {
-        archivedCount: toArchive.length,
-        playlistUrl: createdPlaylist.external_urls?.spotify ?? null,
-        playlistId: createdPlaylist.id
-      };
-    } catch (error) {
-      if ((error as any).response?.status === 403) {
-        console.warn('[AutoCleaner] 403 Forbidden when archiving. Returning mock success for Development Mode / Non-Premium user.');
-        return {
-          archivedCount: toArchive.length,
-          playlistUrl: 'https://open.spotify.com/',
-          playlistId: `mock_archive_${Date.now()}`
-        };
-      }
-      throw error;
     }
+
+    for (const idsChunk of chunk(toArchive.map((track) => track.id), 50)) {
+      await AutoCleanerService.spotifyDelete(`${SPOTIFY_API_BASE}/me/tracks`, user.accessToken, {
+        ids: idsChunk
+      });
+    }
+
+    await prisma.generatedPlaylist.create({
+      data: {
+        userId: user.id,
+        type: 'cleaner'
+      }
+    });
+
+    return {
+      archivedCount: toArchive.length,
+      playlistUrl: createdPlaylist.external_urls?.spotify ?? null,
+      playlistId: createdPlaylist.id
+    };
   }
 }
