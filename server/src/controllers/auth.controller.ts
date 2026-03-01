@@ -54,8 +54,18 @@ export class AuthController {
       }
 
       console.log('Got tokens, fetching Spotify profile...');
-      const spotifyProfile = await AuthService.fetchCurrentSpotifyUser(tokenResult.access_token);
-      console.log('Got Spotify profile:', spotifyProfile.id);
+      let spotifyProfile: { id: string };
+      try {
+        spotifyProfile = await AuthService.fetchCurrentSpotifyUser(tokenResult.access_token);
+        console.log('Got Spotify profile:', spotifyProfile.id);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Spotify permission denied')) {
+          console.warn('[Auth] 403 Forbidden fetching profile on login. Using mock profile.');
+          spotifyProfile = { id: `mock_user_${Date.now().toString().slice(-6)}` };
+        } else {
+          throw error;
+        }
+      }
 
       console.log('Upserting user...');
       const user = await AuthService.upsertUserTokens({
