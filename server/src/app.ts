@@ -26,6 +26,16 @@ app.use(
 app.use(express.json());
 app.use(cookieParser(env.cookieSecret));
 app.use(pinoHttp.default({ logger }));
+
+// Content Security Policy
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.spotify.com https://www.google-analytics.com https://cdn.jsdelivr.net;"
+  );
+  next();
+});
+
 app.use(sessionAuth);
 
 // Serve client build
