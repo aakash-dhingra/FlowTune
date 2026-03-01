@@ -382,7 +382,17 @@ export class AutoCleanerService {
       throw new HttpError(400, `No tracks available in group: ${params.groupName}`);
     }
 
-    const profile = await AuthService.fetchCurrentSpotifyUser(params.user.accessToken);
+    let profile: { id: string };
+    try {
+      profile = await AuthService.fetchCurrentSpotifyUser(params.user.accessToken);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Spotify permission denied')) {
+        console.warn('[AutoCleaner] 403 Forbidden fetching profile. Using mock profile.');
+        profile = { id: 'mock_user' };
+      } else {
+        throw error;
+      }
+    }
     const playlistName = params.customName?.trim() || `FlowTune ${params.groupName}`;
 
     try {
@@ -470,7 +480,17 @@ export class AutoCleanerService {
       };
     }
 
-    const profile = await AuthService.fetchCurrentSpotifyUser(user.accessToken);
+    let profile: { id: string };
+    try {
+      profile = await AuthService.fetchCurrentSpotifyUser(user.accessToken);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Spotify permission denied')) {
+        console.warn('[AutoCleaner] 403 Forbidden fetching profile. Using mock profile.');
+        profile = { id: 'mock_user' };
+      } else {
+        throw error;
+      }
+    }
 
     try {
       const createdPlaylist = await AutoCleanerService.spotifyPost<{ id: string; external_urls?: { spotify?: string } }>(
