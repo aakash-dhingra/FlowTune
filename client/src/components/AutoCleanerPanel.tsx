@@ -199,7 +199,7 @@ const AutoCleanerPanel = ({ enabled }: Props) => {
                       <p className="text-sm font-medium text-slate-100">{track.name}</p>
                       <p className="text-xs text-slate-400">{track.artists.join(', ')}</p>
                       <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-500">
-                        {formatMinutes(track.durationMs)} | Energy {track.energy.toFixed(2)} | Tempo {track.tempo.toFixed(0)}
+                        {formatMinutes(track.durationMs)}
                       </p>
                     </li>
                   ))}
