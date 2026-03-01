@@ -1,4 +1,4 @@
-export type AutoCleanerGroupName = 'High Energy' | 'Chill' | 'Emotional' | 'Mixed';
+export type AutoCleanerGroupName = 'Mainstream Hits' | 'Popular Tracks' | 'Hidden Gems' | 'Underground';
 
 export type AutoCleanerTrack = {
   id: string;

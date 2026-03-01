@@ -2,10 +2,10 @@ import type { Request, Response } from 'express';
 import { HttpError } from '../utils/httpError.js';
 import { AutoCleanerService } from '../services/autoCleaner.service.js';
 
-type GroupName = 'High Energy' | 'Chill' | 'Emotional' | 'Mixed';
+type GroupName = 'Mainstream Hits' | 'Popular Tracks' | 'Hidden Gems' | 'Underground';
 
 const isGroupName = (value: unknown): value is GroupName => {
-  return ['High Energy', 'Chill', 'Emotional', 'Mixed'].includes(String(value));
+  return ['Mainstream Hits', 'Popular Tracks', 'Hidden Gems', 'Underground'].includes(String(value));
 };
 
 export class AutoCleanerController {
@@ -20,7 +20,7 @@ export class AutoCleanerController {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during analysis';
       console.error('[AutoCleanerController] Analyze failed:', errorMessage);
-      
+
       if ((error as any)?.response?.status === 401) {
         throw new HttpError(401, 'Spotify authentication failed. Please login again.');
       }
@@ -43,7 +43,7 @@ export class AutoCleanerController {
     const customName = req.body?.playlistName;
 
     if (!isGroupName(groupName)) {
-      throw new HttpError(400, 'Invalid groupName. Use High Energy, Chill, Emotional, or Mixed.');
+      throw new HttpError(400, 'Invalid groupName. Use Mainstream Hits, Popular Tracks, Hidden Gems, or Underground.');
     }
 
     const data = await AutoCleanerService.createPlaylistFromGroup({

@@ -38,7 +38,7 @@ type TrackWithFeatures = {
   acousticness: number;
 };
 
-type AutoCleanerGroupName = 'High Energy' | 'Chill' | 'Emotional' | 'Mixed';
+type AutoCleanerGroupName = 'Mainstream Hits' | 'Popular Tracks' | 'Hidden Gems' | 'Underground';
 
 export type AutoCleanerGroup = {
   name: AutoCleanerGroupName;
@@ -57,42 +57,9 @@ const MAX_LIKED_TRACKS = 250;
 const CLUSTER_COUNT = 4;
 const KMEANS_ITERATIONS = 12;
 
-const groupOrder: AutoCleanerGroupName[] = ['High Energy', 'Chill', 'Emotional', 'Mixed'];
+const groupOrder: AutoCleanerGroupName[] = ['Mainstream Hits', 'Popular Tracks', 'Hidden Gems', 'Underground'];
 
-const toVector = (track: TrackWithFeatures): number[] => {
-  const tempoNormalized = Math.min(track.tempo / 200, 1);
-  return [track.energy, track.valence, tempoNormalized, track.acousticness];
-};
-
-const distance = (a: number[], b: number[]): number => {
-  let sum = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    const d = a[i] - b[i];
-    sum += d * d;
-  }
-  return Math.sqrt(sum);
-};
-
-const averageVector = (vectors: number[][], fallback: number[]): number[] => {
-  if (vectors.length === 0) {
-    return fallback;
-  }
-
-  const dims = fallback.length;
-  const result = new Array(dims).fill(0);
-
-  for (const vector of vectors) {
-    for (let i = 0; i < dims; i += 1) {
-      result[i] += vector[i];
-    }
-  }
-
-  for (let i = 0; i < dims; i += 1) {
-    result[i] /= vectors.length;
-  }
-
-  return result;
-};
+// Removed vector functions (toVector, distance, averageVector) since we are no longer clustering
 
 const getTrackKey = (track: TrackWithFeatures): string => {
   const normalizedName = track.name.trim().toLowerCase();
@@ -208,7 +175,7 @@ export class AutoCleanerService {
     try {
       console.log('[AutoCleaner] Fetching liked tracks from Spotify...');
       console.log('[AutoCleaner] Access token:', accessToken.substring(0, 20) + '...');
-      
+
       const all: LikedTrackItem[] = [];
       let offset = 0;
 
@@ -277,19 +244,13 @@ export class AutoCleanerService {
   }
 
   private static toTrackWithFeatures(
-    likedTracks: LikedTrackItem[],
-    audioFeatures: Map<string, AudioFeature>
+    likedTracks: LikedTrackItem[]
   ): TrackWithFeatures[] {
     const tracks: TrackWithFeatures[] = [];
 
     for (const item of likedTracks) {
       const track = item.track;
       if (!track?.id || !track.uri) {
-        continue;
-      }
-
-      const feature = audioFeatures.get(track.id);
-      if (!feature) {
         continue;
       }
 
@@ -301,131 +262,42 @@ export class AutoCleanerService {
         durationMs: track.duration_ms,
         popularity: track.popularity,
         addedAt: item.added_at,
-        energy: feature.energy,
-        valence: feature.valence,
-        tempo: feature.tempo,
-        acousticness: feature.acousticness
+        energy: 0,
+        valence: 0,
+        tempo: 0,
+        acousticness: 0
       });
     }
 
     return tracks;
   }
 
-  private static runKMeans(tracks: TrackWithFeatures[]): Array<{ centroid: number[]; tracks: TrackWithFeatures[] }> {
-    if (tracks.length === 0) {
-      return [];
-    }
+  private static groupTracksByPopularity(tracks: TrackWithFeatures[]): AutoCleanerGroup[] {
+    const groups: AutoCleanerGroup[] = groupOrder.map(name => ({ name, tracks: [] }));
 
-    const vectors = tracks.map(toVector);
-    const seedCount = Math.min(CLUSTER_COUNT, tracks.length);
-    const centroids = Array.from({ length: seedCount }, (_unused, i) => {
-      const idx = Math.floor((i * tracks.length) / seedCount);
-      return vectors[idx];
-    });
-    while (centroids.length < CLUSTER_COUNT) {
-      centroids.push(vectors[vectors.length - 1]);
-    }
-
-    let assignments = new Array(tracks.length).fill(0);
-
-    for (let iteration = 0; iteration < KMEANS_ITERATIONS; iteration += 1) {
-      assignments = vectors.map((vector) => {
-        let best = 0;
-        let bestDistance = Number.POSITIVE_INFINITY;
-
-        for (let i = 0; i < centroids.length; i += 1) {
-          const d = distance(vector, centroids[i]);
-          if (d < bestDistance) {
-            bestDistance = d;
-            best = i;
-          }
-        }
-
-        return best;
-      });
-
-      for (let i = 0; i < centroids.length; i += 1) {
-        const clusterVectors = vectors.filter((_v, idx) => assignments[idx] === i);
-        centroids[i] = averageVector(clusterVectors, centroids[i]);
+    for (const track of tracks) {
+      if (track.popularity >= 80) {
+        groups[0].tracks.push(track); // Mainstream Hits
+      } else if (track.popularity >= 50) {
+        groups[1].tracks.push(track); // Popular Tracks
+      } else if (track.popularity >= 25) {
+        groups[2].tracks.push(track); // Hidden Gems
+      } else {
+        groups[3].tracks.push(track); // Underground
       }
     }
 
-    return centroids.map((centroid, i) => ({
-      centroid,
-      tracks: tracks.filter((_track, idx) => assignments[idx] === i)
-    }));
-  }
-
-  private static labelClusters(
-    clusters: Array<{ centroid: number[]; tracks: TrackWithFeatures[] }>
-  ): AutoCleanerGroup[] {
-    if (clusters.length === 0) {
-      return groupOrder.map((name) => ({ name, tracks: [] }));
-    }
-
-    const descriptors = clusters.map((cluster, idx) => {
-      const [energy, valence, tempoNormalized, acousticness] = cluster.centroid;
-      return {
-        idx,
-        cluster,
-        highEnergyScore: energy * 0.7 + tempoNormalized * 0.3,
-        chillScore: acousticness * 0.7 + (1 - energy) * 0.3,
-        emotionalScore: (1 - valence) * 0.7 + acousticness * 0.3
-      };
-    });
-
-    const used = new Set<number>();
-    const assignments = new Map<AutoCleanerGroupName, number>();
-
-    const takeBest = (label: AutoCleanerGroupName, scoreSelector: (d: (typeof descriptors)[number]) => number) => {
-      const candidate = descriptors
-        .filter((d) => !used.has(d.idx))
-        .sort((a, b) => scoreSelector(b) - scoreSelector(a))[0];
-
-      if (candidate) {
-        assignments.set(label, candidate.idx);
-        used.add(candidate.idx);
-      }
-    };
-
-    takeBest('High Energy', (d) => d.highEnergyScore);
-    takeBest('Chill', (d) => d.chillScore);
-    takeBest('Emotional', (d) => d.emotionalScore);
-
-    const remaining = descriptors.find((d) => !used.has(d.idx));
-    if (remaining) {
-      assignments.set('Mixed', remaining.idx);
-      used.add(remaining.idx);
-    }
-
-    for (const label of groupOrder) {
-      if (!assignments.has(label)) {
-        const fallback = descriptors.find((d) => !used.has(d.idx));
-        if (fallback) {
-          assignments.set(label, fallback.idx);
-          used.add(fallback.idx);
-        }
-      }
-    }
-
-    return groupOrder.map((name) => {
-      const idx = assignments.get(name);
-      const cluster = clusters[idx ?? -1];
-      const sortedTracks = [...(cluster?.tracks ?? [])].sort((a, b) => b.energy - a.energy);
-      return {
-        name,
-        tracks: sortedTracks
-      };
-    });
+    groups.forEach(group => group.tracks.sort((a, b) => b.popularity - a.popularity));
+    return groups;
   }
 
   static async analyze(user: User): Promise<AutoCleanerAnalysis> {
     try {
       console.log(`[AutoCleaner] Starting analysis for user ${user.id}`);
-      
+
       const likedTracks = await AutoCleanerService.fetchLikedTracks(user.accessToken);
       console.log(`[AutoCleaner] Fetched ${likedTracks.length} liked tracks`);
-      
+
       const trackIds = likedTracks.map((item) => item.track.id).filter(Boolean);
       console.log(`[AutoCleaner] Extracted ${trackIds.length} track IDs`);
 
@@ -439,18 +311,12 @@ export class AutoCleanerService {
         };
       }
 
-      console.log(`[AutoCleaner] Fetching audio features for ${trackIds.length} tracks`);
-      const audioFeatures = await AutoCleanerService.fetchAudioFeatures(user.accessToken, trackIds);
-      console.log(`[AutoCleaner] Got audio features for ${audioFeatures.size} tracks`);
-      
-      const tracks = AutoCleanerService.toTrackWithFeatures(likedTracks, audioFeatures);
+      // Bypass deprecated audio-features API
+      const tracks = AutoCleanerService.toTrackWithFeatures(likedTracks);
       console.log(`[AutoCleaner] Created ${tracks.length} tracks with features`);
-      
-      const clusters = AutoCleanerService.runKMeans(tracks);
-      console.log(`[AutoCleaner] Clustered into ${clusters.length} groups`);
-      
-      const groups = AutoCleanerService.labelClusters(clusters);
-      console.log('[AutoCleaner] Labeled clusters');
+
+      const groups = AutoCleanerService.groupTracksByPopularity(tracks);
+      console.log('[AutoCleaner] Grouped tracks by popularity');
 
       const duplicateCandidates = dedupeTrackIds(tracks).length;
       const lowPlayedCandidates = tracks.filter((track) => track.popularity <= 35).length;

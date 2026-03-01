@@ -143,7 +143,8 @@ export class AuthService {
           headers: error.config?.headers
         });
         if (error.response?.status === 403) {
-          throw new Error('Spotify permission denied when fetching profile. Token may lack required scopes.');
+          const spotifyErrMsg = error.response?.data?.error?.message || 'Token may lack required scopes or the app is in Development Mode and your Spotify account is not explicitly whitelisted.';
+          throw new Error(`Spotify permission denied when fetching profile: ${spotifyErrMsg}`);
         }
       }
       throw error;
