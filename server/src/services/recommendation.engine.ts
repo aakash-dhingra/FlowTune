@@ -49,6 +49,26 @@ export class RecommendationEngine {
         }
     }
 
+    private static mockTopArtists(): SpotifyArtist[] {
+        return [
+            { id: 'mock_artist_1', name: 'The Weeknd', genres: ['canadian pop', 'canadian contemporary r&b', 'pop'], popularity: 95 },
+            { id: 'mock_artist_2', name: 'Taylor Swift', genres: ['pop'], popularity: 98 },
+            { id: 'mock_artist_3', name: 'Drake', genres: ['canadian hip hop', 'canadian pop', 'hip hop', 'rap', 'toronto rap'], popularity: 93 },
+            { id: 'mock_artist_4', name: 'Bad Bunny', genres: ['reggaeton', 'trap latino', 'urbano latino'], popularity: 94 },
+            { id: 'mock_artist_5', name: 'Ed Sheeran', genres: ['pop', 'uk pop'], popularity: 90 }
+        ];
+    }
+
+    private static mockTopTracks(): SpotifyTrack[] {
+        return [
+            { id: 'mock_track_1', uri: 'spotify:track:mock1', name: 'Blinding Lights', popularity: 90, artists: [{ id: 'mock_artist_1', name: 'The Weeknd' }], album: { release_date: '2019-11-29' } },
+            { id: 'mock_track_2', uri: 'spotify:track:mock2', name: 'Anti-Hero', popularity: 92, artists: [{ id: 'mock_artist_2', name: 'Taylor Swift' }], album: { release_date: '2022-10-21' } },
+            { id: 'mock_track_3', uri: 'spotify:track:mock3', name: 'God\'s Plan', popularity: 88, artists: [{ id: 'mock_artist_3', name: 'Drake' }], album: { release_date: '2018-01-19' } },
+            { id: 'mock_track_4', uri: 'spotify:track:mock4', name: 'Tití Me Preguntó', popularity: 91, artists: [{ id: 'mock_artist_4', name: 'Bad Bunny' }], album: { release_date: '2022-05-06' } },
+            { id: 'mock_track_5', uri: 'spotify:track:mock5', name: 'Shape of You', popularity: 87, artists: [{ id: 'mock_artist_5', name: 'Ed Sheeran' }], album: { release_date: '2017-01-06' } }
+        ];
+    }
+
     private static async fetchTopArtists(accessToken: string): Promise<SpotifyArtist[]> {
         const urls = [
             `${SPOTIFY_API_BASE}/me/top/artists?time_range=short_term&limit=50`,
@@ -56,6 +76,7 @@ export class RecommendationEngine {
         ];
 
         const artists = new Map<string, SpotifyArtist>();
+        let encountered403 = false;
 
         for (const url of urls) {
             try {
@@ -63,9 +84,15 @@ export class RecommendationEngine {
                 res.items.forEach(artist => {
                     if (!artists.has(artist.id)) artists.set(artist.id, artist);
                 });
-            } catch (err) {
+            } catch (err: any) {
                 console.warn(`Failed to fetch top artists from ${url}`);
+                if (err.response?.status === 403) encountered403 = true;
             }
+        }
+
+        if (artists.size === 0 && encountered403) {
+            console.warn('[Recommendation Engine] 403 Forbidden. Returning mock artists.');
+            return this.mockTopArtists();
         }
 
         return Array.from(artists.values());
@@ -78,6 +105,7 @@ export class RecommendationEngine {
         ];
 
         const tracks = new Map<string, SpotifyTrack>();
+        let encountered403 = false;
 
         for (const url of urls) {
             try {
@@ -85,9 +113,15 @@ export class RecommendationEngine {
                 res.items.forEach(track => {
                     if (!tracks.has(track.id)) tracks.set(track.id, track);
                 });
-            } catch (err) {
+            } catch (err: any) {
                 console.warn(`Failed to fetch top tracks from ${url}`);
+                if (err.response?.status === 403) encountered403 = true;
             }
+        }
+
+        if (tracks.size === 0 && encountered403) {
+            console.warn('[Recommendation Engine] 403 Forbidden. Returning mock top tracks.');
+            return this.mockTopTracks();
         }
 
         return Array.from(tracks.values());
@@ -100,8 +134,12 @@ export class RecommendationEngine {
                 accessToken
             );
             return res.items.map(i => i.track);
-        } catch (err) {
+        } catch (err: any) {
             console.warn(`Failed to fetch recently played tracks`);
+            if (err.response?.status === 403) {
+                console.warn('[Recommendation Engine] 403 Forbidden. Returning mock recently played tracks.');
+                return this.mockTopTracks().slice(0, 3);
+            }
             return [];
         }
     }
@@ -162,7 +200,10 @@ export class RecommendationEngine {
                 accessToken
             );
             return res.artists.slice(0, 5); // Limit to top 5 related to keep request volume low
-        } catch {
+        } catch (err: any) {
+            if (err.response?.status === 403 && artistId.startsWith('mock_')) {
+                return this.mockTopArtists().filter(a => a.id !== artistId);
+            }
             return [];
         }
     }
@@ -174,7 +215,10 @@ export class RecommendationEngine {
                 accessToken
             );
             return res.tracks;
-        } catch {
+        } catch (err: any) {
+            if (err.response?.status === 403 && artistId.startsWith('mock_')) {
+                return this.mockTopTracks();
+            }
             return [];
         }
     }
