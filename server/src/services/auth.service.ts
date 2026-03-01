@@ -13,7 +13,9 @@ export class AuthService {
       'playlist-modify-private',
       'playlist-modify-public',
       'user-read-email',
-      'user-read-private'
+      'user-read-private',
+      'user-top-read',
+      'user-read-recently-played'
     ].join(' ');
 
     const params = new URLSearchParams({
@@ -25,7 +27,7 @@ export class AuthService {
     });
 
     const url = `${SPOTIFY_ACCOUNTS_BASE}/authorize?${params.toString()}`;
-    
+
     console.log('[Auth] Building Spotify authorize URL:', {
       client_id: env.spotifyClientId,
       redirect_uri: env.spotifyRedirectUri,
@@ -51,7 +53,7 @@ export class AuthService {
         client_id: env.spotifyClientId,
         code: code.substring(0, 10) + '...'
       });
-      
+
       const { data } = await axios.post<SpotifyTokenResponse>(
         `${SPOTIFY_ACCOUNTS_BASE}/api/token`,
         params,
@@ -71,16 +73,16 @@ export class AuthService {
       });
 
       // Check if required scopes are present
-      const requiredScopes = ['user-read-private', 'user-read-email', 'user-library-read', 'playlist-modify-private', 'playlist-modify-public'];
+      const requiredScopes = ['user-read-private', 'user-read-email', 'user-library-read', 'playlist-modify-private', 'playlist-modify-public', 'user-top-read', 'user-read-recently-played'];
       const grantedScopes = (data.scope || '').split(' ').filter(Boolean);
       const missingScopes = requiredScopes.filter(scope => !grantedScopes.includes(scope));
-      
+
       console.log('[Auth] Scopes verification:', {
         required: requiredScopes,
         granted: grantedScopes,
         missing: missingScopes
       });
-      
+
       if (missingScopes.length > 0) {
         throw new Error(`Spotify token missing required scopes: ${missingScopes.join(', ')}.\nCheck your Spotify app settings and make sure all scopes are granted.`);
       }
