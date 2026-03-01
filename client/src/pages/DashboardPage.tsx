@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AutoCleanerPanel from '../components/AutoCleanerPanel';
+import TimeMachinePanel from '../components/TimeMachinePanel';
 import FeatureCard from '../components/FeatureCard';
 import Header from '../components/Header';
 import { getAuthUser, logout, redirectToSpotifyLogin, type AuthUser } from '../services/auth';
@@ -19,6 +20,13 @@ const features: FeatureCardType[] = [
     description:
       'Generate playlists from energy, mood, and duration targets with a smooth progression curve powered by Spotify recommendations.',
     status: 'Upcoming'
+  },
+  {
+    id: 'time-machine',
+    title: 'Time Machine Eras',
+    description:
+      'Journey back through your musical history. Group Liked Songs by the year you saved them and generate nostalgic Era playlists.',
+    status: 'Ready'
   },
   {
     id: 'time',
@@ -83,7 +91,10 @@ const DashboardPage = () => {
         ))}
       </section>
 
-      <AutoCleanerPanel enabled={Boolean(user)} />
+      <div className="space-y-8 mt-8">
+        <AutoCleanerPanel enabled={Boolean(user)} />
+        <TimeMachinePanel enabled={Boolean(user)} />
+      </div>
     </main>
   );
 };

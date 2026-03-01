@@ -11,6 +11,7 @@ enum GeneratedPlaylistType {
   mood
   time
   cleaner
+  time_machine
 }
 
 model User {
