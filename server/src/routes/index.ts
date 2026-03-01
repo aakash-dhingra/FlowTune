@@ -5,6 +5,7 @@ import autoCleanerRoutes from './autoCleaner.routes.js';
 import moodBuilderRoutes from './moodBuilder.routes.js';
 import timeBuilderRoutes from './timeBuilder.routes.js';
 import timeMachineRoutes from './timeMachine.routes.js';
+import recommendationRoutes from './recommendation.routes.js';
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use('/auto-cleaner', autoCleanerRoutes);
 router.use('/mood-builder', moodBuilderRoutes);
 router.use('/time-builder', timeBuilderRoutes);
 router.use('/time-machine', timeMachineRoutes);
+router.use('/recommendations', recommendationRoutes);
 
 export default router;
