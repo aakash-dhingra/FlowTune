@@ -16,14 +16,6 @@ type LikedTrackItem = {
   };
 };
 
-type AudioFeature = {
-  id: string;
-  energy: number;
-  valence: number;
-  tempo: number;
-  acousticness: number;
-};
-
 type TrackWithFeatures = {
   id: string;
   uri: string;
@@ -32,10 +24,6 @@ type TrackWithFeatures = {
   durationMs: number;
   popularity: number;
   addedAt: string;
-  energy: number;
-  valence: number;
-  tempo: number;
-  acousticness: number;
 };
 
 type AutoCleanerGroupName = 'Mainstream Hits' | 'Popular Tracks' | 'Hidden Gems' | 'Underground';
@@ -244,38 +232,6 @@ export class AutoCleanerService {
     return mockTracks;
   }
 
-  private static async fetchAudioFeatures(accessToken: string, trackIds: string[]): Promise<Map<string, AudioFeature>> {
-    try {
-      console.log(`[AutoCleaner] Fetching audio features for ${trackIds.length} tracks...`);
-      const features = new Map<string, AudioFeature>();
-      const chunks = chunk(trackIds, 100);
-      console.log(`[AutoCleaner] Processing ${chunks.length} batches of audio features`);
-
-      for (const idsChunk of chunks) {
-        console.log(`[AutoCleaner] Fetching audio features for ${idsChunk.length} tracks`);
-        const data = await AutoCleanerService.spotifyGet<{ audio_features: Array<AudioFeature | null> }>(
-          `${SPOTIFY_API_BASE}/audio-features`,
-          accessToken,
-          {
-            ids: idsChunk.join(',')
-          }
-        );
-
-        for (const feature of data.audio_features) {
-          if (feature?.id) {
-            features.set(feature.id, feature);
-          }
-        }
-      }
-
-      console.log(`[AutoCleaner] Successfully fetched audio features for ${features.size} tracks`);
-      return features;
-    } catch (error) {
-      console.error('[AutoCleaner] Failed to fetch audio features:', error instanceof Error ? error.message : error);
-      throw error;
-    }
-  }
-
   private static toTrackWithFeatures(
     likedTracks: LikedTrackItem[]
   ): TrackWithFeatures[] {
@@ -294,11 +250,7 @@ export class AutoCleanerService {
         artists: track.artists.map((artist) => artist.name),
         durationMs: track.duration_ms,
         popularity: track.popularity,
-        addedAt: item.added_at,
-        energy: 0,
-        valence: 0,
-        tempo: 0,
-        acousticness: 0
+        addedAt: item.added_at
       });
     }
 
