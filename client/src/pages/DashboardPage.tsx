@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AutoCleanerPanel from '../components/AutoCleanerPanel';
 import TimeMachinePanel from '../components/TimeMachinePanel';
+import RecommendationPanel from '../components/RecommendationPanel';
 import FeatureCard from '../components/FeatureCard';
 import Header from '../components/Header';
 import { getAuthUser, logout, redirectToSpotifyLogin, type AuthUser } from '../services/auth';
@@ -94,6 +95,7 @@ const DashboardPage = () => {
       <div className="space-y-8 mt-8">
         <AutoCleanerPanel enabled={Boolean(user)} />
         <TimeMachinePanel enabled={Boolean(user)} />
+        <RecommendationPanel enabled={Boolean(user)} />
       </div>
     </main>
   );
