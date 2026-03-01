@@ -81,7 +81,7 @@ export class RecommendationEngine {
         for (const url of urls) {
             try {
                 const res = await this.spotifyGet<{ items: SpotifyArtist[] }>(url, accessToken);
-                res.items.forEach(artist => {
+                res?.items?.forEach(artist => {
                     if (!artists.has(artist.id)) artists.set(artist.id, artist);
                 });
             } catch (err: any) {
@@ -110,7 +110,7 @@ export class RecommendationEngine {
         for (const url of urls) {
             try {
                 const res = await this.spotifyGet<{ items: SpotifyTrack[] }>(url, accessToken);
-                res.items.forEach(track => {
+                res?.items?.forEach(track => {
                     if (!tracks.has(track.id)) tracks.set(track.id, track);
                 });
             } catch (err: any) {
@@ -133,7 +133,7 @@ export class RecommendationEngine {
                 `${SPOTIFY_API_BASE}/me/player/recently-played?limit=50`,
                 accessToken
             );
-            return res.items.map(i => i.track);
+            return res?.items?.map(i => i.track) || [];
         } catch (err: any) {
             console.warn(`Failed to fetch recently played tracks`);
             if (err.response?.status === 403) {
@@ -151,7 +151,7 @@ export class RecommendationEngine {
                 `${SPOTIFY_API_BASE}/me/tracks?limit=50`,
                 accessToken
             );
-            return new Set(res.items.map(i => i.track.id));
+            return new Set((res?.items || []).map(i => i.track.id));
         } catch (err) {
             return new Set();
         }
@@ -170,17 +170,18 @@ export class RecommendationEngine {
         const recentTrackIds = new Set<string>();
 
         // Weight artists by appearance in top lists
-        topArtists.forEach(artist => {
+        topArtists?.forEach(artist => {
             artistMap.set(artist.name, (artistMap.get(artist.name) || 0) + 2);
-            artist.genres.forEach(genre => {
+            artist.genres?.forEach(genre => {
                 genreMap.set(genre, (genreMap.get(genre) || 0) + 1);
             });
         });
 
         // Extract implicit artist/genre affinity from top tracks + recents
         [...topTracks, ...recentTracks].forEach(track => {
+            if (!track) return;
             recentTrackIds.add(track.id);
-            track.artists.forEach(artist => {
+            track.artists?.forEach(artist => {
                 artistMap.set(artist.name, (artistMap.get(artist.name) || 0) + 1);
             });
         });
@@ -199,7 +200,7 @@ export class RecommendationEngine {
                 `${SPOTIFY_API_BASE}/artists/${artistId}/related-artists`,
                 accessToken
             );
-            return res.artists.slice(0, 5); // Limit to top 5 related to keep request volume low
+            return res?.artists?.slice(0, 5) || []; // Limit to top 5 related to keep request volume low
         } catch (err: any) {
             if (err.response?.status === 403 && artistId.startsWith('mock_')) {
                 return this.mockTopArtists().filter(a => a.id !== artistId);
@@ -214,7 +215,7 @@ export class RecommendationEngine {
                 `${SPOTIFY_API_BASE}/artists/${artistId}/top-tracks?market=from_token`,
                 accessToken
             );
-            return res.tracks;
+            return res?.tracks || [];
         } catch (err: any) {
             if (err.response?.status === 403 && artistId.startsWith('mock_')) {
                 return this.mockTopTracks();
@@ -233,7 +234,7 @@ export class RecommendationEngine {
         const relatedArtistPool = new Map<string, SpotifyArtist>();
         for (const seed of seedArtists) {
             const related = await this.fetchRelatedArtists(seed.id, accessToken);
-            related.forEach(a => {
+            related?.forEach(a => {
                 if (!relatedArtistPool.has(a.id)) {
                     relatedArtistPool.set(a.id, a);
                 }
@@ -247,7 +248,7 @@ export class RecommendationEngine {
         // Batch requesting sequentially to avoid rate limits since these loops are small (max ~30 iterations)
         for (const artist of allArtistsToProbe.slice(0, 15)) {
             const tracks = await this.fetchArtistTopTracks(artist.id, accessToken);
-            tracks.forEach(t => {
+            tracks?.forEach(t => {
                 // Filter out obvious ones: saved tracks or recently played
                 if (!tasteProfile.savedTrackIds.has(t.id) && !tasteProfile.recentTrackIds.has(t.id)) {
                     tracksToConsider.set(t.id, t);
@@ -264,14 +265,14 @@ export class RecommendationEngine {
 
         // 1. Artist Affinity (Weight: 0.3)
         let artistMatches = 0;
-        track.artists.forEach(artist => {
+        track.artists?.forEach(artist => {
             const affinity = tasteProfile.artists.get(artist.name) || 0;
             if (affinity > 0) {
                 artistMatches += 1;
                 score += Math.min(affinity * 0.1, 0.3); // Max contribution 0.3
             }
         });
-        if (artistMatches > 0) {
+        if (artistMatches > 0 && track.artists?.length > 0) {
             rankReasons.push(`because you frequently listen to ${track.artists[0]?.name}`);
         }
 
@@ -302,7 +303,7 @@ export class RecommendationEngine {
         return {
             track_id: track.id,
             name: track.name,
-            artist: track.artists.map(a => a.name).join(', '),
+            artist: track.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
             score: parseFloat(score.toFixed(3)),
             explanation
         };
