@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User } from '@prisma/client';
+import type { User, GeneratedPlaylistType } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 
